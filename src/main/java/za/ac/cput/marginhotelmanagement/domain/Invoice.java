@@ -4,6 +4,8 @@ package za.ac.cput.marginhotelmanagement.domain;
    Author: MS MALAPILE (222904267)
    Date: 20 June 2026 */
 
+import za.ac.cput.marginhotelmanagement.enums.InvoiceStatus;
+
 import java.time.LocalDate;
 
 public class Invoice {
@@ -13,6 +15,7 @@ public class Invoice {
     private LocalDate issueDate;
     private String bookingId;
     private int guestId;
+    private InvoiceStatus invoiceStatus;
 
     protected Invoice(){
 
@@ -22,9 +25,11 @@ public class Invoice {
         this.invoiceId = builder.invoiceId;
         this.totalAmount = builder.totalAmount;
         this.issueDate= builder.issueDate;
+        this.bookingId = builder.bookingId;
+        this.guestId = builder.guestId;
+        this.invoiceStatus = builder.invoiceStatus;
 
     }
-
 
     public Long getInvoiceId() {
         return invoiceId;
@@ -33,7 +38,6 @@ public class Invoice {
     public double getTotalAmount() {
         return totalAmount;
     }
-
 
     public LocalDate getIssueDate() {
         return issueDate;
@@ -47,6 +51,10 @@ public class Invoice {
         return guestId;
     }
 
+    public InvoiceStatus getInvoiceStatus() {
+        return invoiceStatus;
+    }
+
     @Override
     public String toString() {
         return "Invoice{" +
@@ -55,6 +63,7 @@ public class Invoice {
                 ", issueDate=" + issueDate +
                 ", bookingId='" + bookingId + '\'' +
                 ", guestId=" + guestId +
+                ", invoiceStatus=" + invoiceStatus +
                 '}';
     }
 
@@ -64,6 +73,7 @@ public class Invoice {
         private LocalDate issueDate;
         private String bookingId;
         private int guestId;
+        private InvoiceStatus invoiceStatus;
 
         public Builder setInvoiceId(Long invoiceId) {
             this.invoiceId = invoiceId;
@@ -89,12 +99,19 @@ public class Invoice {
             this.guestId = guestId;
             return this;
         }
+
+        public Builder setInvoiceStatus(InvoiceStatus invoiceStatus) {
+            this.invoiceStatus = invoiceStatus;
+            return this;
+        }
+
         public Builder copy (Invoice invoice){
             this.invoiceId = invoice.invoiceId;
             this.totalAmount = invoice.totalAmount;
             this.issueDate = invoice.issueDate;
             this.bookingId = invoice.bookingId;
             this.guestId = invoice.guestId;
+            this.invoiceStatus = invoice.invoiceStatus;
             return this;
         }
 
