@@ -1,7 +1,9 @@
 package za.ac.cput.marginhotelmanagement.domain;
 /*
+   Name.java
+   Name POJO class
    Author: Hlomla Magopeni (218070349)
-   Date: 20 June 2026 */
+   Date: 21 June 2026 */
 
 
 public final class Name implements ValueObject {
