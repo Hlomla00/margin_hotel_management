@@ -4,13 +4,18 @@ package za.ac.cput.marginhotelmanagement.controller;
    REST controller for Guest entity
    Author: Hlomla Magopeni (218070349)
    Date: 21 August 2026
+   Updated: 09 September 2026 — rewritten against the DTO-based contract
+   (CreateGuestRequest / GuestDto / UpdateGuestRequest), same pattern as
+   BookingController/PaymentController.
    */
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import za.ac.cput.marginhotelmanagement.domain.Guest;
+import za.ac.cput.marginhotelmanagement.dtos.CreateGuestRequest;
+import za.ac.cput.marginhotelmanagement.dtos.GuestDto;
+import za.ac.cput.marginhotelmanagement.dtos.UpdateGuestRequest;
 import za.ac.cput.marginhotelmanagement.service.GuestService;
 
 import java.util.List;
@@ -27,9 +32,9 @@ public class GuestController {
     }
 
     @PostMapping("/create")
-    public ResponseEntity<?> create(@RequestBody Guest guest) {
+    public ResponseEntity<?> create(@RequestBody CreateGuestRequest request) {
         try {
-            Guest createdGuest = guestService.create(guest);
+            GuestDto createdGuest = guestService.createGuest(request);
             return new ResponseEntity<>(createdGuest, HttpStatus.CREATED);
         } catch (IllegalArgumentException e) {
             return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
@@ -37,8 +42,8 @@ public class GuestController {
     }
 
     @GetMapping("/read/{id}")
-    public ResponseEntity<Guest> read(@PathVariable Long id) {
-        Guest guest = guestService.read(id);
+    public ResponseEntity<GuestDto> read(@PathVariable Long id) {
+        GuestDto guest = guestService.readGuest(id);
         if (guest != null) {
             return new ResponseEntity<>(guest, HttpStatus.OK);
         } else {
@@ -47,11 +52,11 @@ public class GuestController {
     }
 
     @PutMapping("/update")
-    public ResponseEntity<?> update(@RequestBody Guest guest) {
+    public ResponseEntity<?> update(@RequestBody UpdateGuestRequest request) {
         try {
-            Guest updated = guestService.update(guest);
+            GuestDto updated = guestService.updateGuest(request);
             if (updated == null) {
-                return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+                return new ResponseEntity<>("No guest found with ID #" + request.getGuestId(), HttpStatus.NOT_FOUND);
             }
             return new ResponseEntity<>(updated, HttpStatus.OK);
         } catch (IllegalArgumentException e) {
@@ -61,11 +66,7 @@ public class GuestController {
 
     @DeleteMapping("/delete/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
-        Guest guest = guestService.read(id);
-        if (guest == null) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
-        boolean deleted = guestService.delete(guest);
+        boolean deleted = guestService.deleteGuest(id);
         if (!deleted) {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
@@ -73,26 +74,26 @@ public class GuestController {
     }
 
     @GetMapping("/getall")
-    public ResponseEntity<List<Guest>> getAll() {
-        List<Guest> guests = guestService.findAll();
+    public ResponseEntity<List<GuestDto>> getAll() {
+        List<GuestDto> guests = guestService.getAllGuests();
         return new ResponseEntity<>(guests, HttpStatus.OK);
     }
 
     @GetMapping("/findByFirstName/{firstName}")
-    public ResponseEntity<List<Guest>> findByFirstName(@PathVariable String firstName) {
-        List<Guest> guests = guestService.findByFirstName(firstName);
+    public ResponseEntity<List<GuestDto>> findByFirstName(@PathVariable String firstName) {
+        List<GuestDto> guests = guestService.getGuestsByFirstName(firstName);
         return new ResponseEntity<>(guests, HttpStatus.OK);
     }
 
     @GetMapping("/findByLastName/{lastName}")
-    public ResponseEntity<List<Guest>> findByLastName(@PathVariable String lastName) {
-        List<Guest> guests = guestService.findByLastName(lastName);
+    public ResponseEntity<List<GuestDto>> findByLastName(@PathVariable String lastName) {
+        List<GuestDto> guests = guestService.getGuestsByLastName(lastName);
         return new ResponseEntity<>(guests, HttpStatus.OK);
     }
 
     @GetMapping("/findByEmail/{email}")
-    public ResponseEntity<Guest> findByEmail(@PathVariable String email) {
-        Guest guest = guestService.findByEmail(email);
+    public ResponseEntity<GuestDto> findByEmail(@PathVariable String email) {
+        GuestDto guest = guestService.getGuestByEmail(email);
         if (guest != null) {
             return new ResponseEntity<>(guest, HttpStatus.OK);
         } else {
