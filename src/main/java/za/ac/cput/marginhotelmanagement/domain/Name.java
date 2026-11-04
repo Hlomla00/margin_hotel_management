@@ -3,12 +3,13 @@ package za.ac.cput.marginhotelmanagement.domain;
    Name.java
    Name POJO class
    Author: Hlomla Magopeni (218070349)
-   Date: 21 June 2026 */
+   Date: 21 June 2026
+   Updated: 04 November 2026 — removed @Table: Name is @Embeddable, so its
+   fields are columns in the guests table and @Table was ignored. */
 
-import jakarta.persistence.*;
+import jakarta.persistence.Embeddable;
 
 @Embeddable
-@Table(name = "names")
 public class Name implements ValueObject {
 
     private String firstName;
