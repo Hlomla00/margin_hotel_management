@@ -4,6 +4,9 @@ package za.ac.cput.marginhotelmanagement.service;
     Test for GuestService
     Author: Hlomla Magopeni (218070349)
     Date: 16 July 2026
+    Updated: 04 November 2026 — added negative tests (invalid email, invalid
+    mobile, missing name, missing guest on read/update/delete) and a test for
+    findByEmail when two guests share the same email.
 */
 
 import org.junit.jupiter.api.*;
@@ -128,5 +131,95 @@ class GuestServiceTest {
         assertNotNull(guest);
         assertEquals(mockGuest.getGuestId(), guest.getGuestId());
         System.out.println("Guest by email: " + guest);
+    }
+
+    /* ==== Negative tests ==== */
+
+    private static final Long MISSING_ID = Long.MAX_VALUE;
+
+    private Guest guestWith(Name name, String email, String mobile) {
+        ContactDetails contactDetails = new ContactDetails.Builder()
+                .setEmail(email)
+                .setMobile(mobile)
+                .build();
+        return new Guest.Builder()
+                .setName(name)
+                .setContactDetails(contactDetails)
+                .build();
+    }
+
+    @Test
+    @Order(9)
+    void createWithInvalidEmailThrows() {
+        Guest guest = guestWith(mockName, "not-an-email", "0821234567");
+        assertThrows(IllegalArgumentException.class, () -> guestService.create(guest));
+    }
+
+    @Test
+    @Order(10)
+    void createWithInvalidMobileThrows() {
+        Guest guest = guestWith(mockName, "valid.guest@marginhotel.com", "082123456");
+        assertThrows(IllegalArgumentException.class, () -> guestService.create(guest));
+    }
+
+    @Test
+    @Order(11)
+    void createWithMissingNameThrows() {
+        Guest guest = guestWith(null, "valid.guest@marginhotel.com", "0821234567");
+        assertThrows(IllegalArgumentException.class, () -> guestService.create(guest));
+    }
+
+    @Test
+    @Order(12)
+    void createWithMissingLastNameThrows() {
+        Name noLastName = new Name.Builder().setFirstName("Thandeka").build();
+        Guest guest = guestWith(noLastName, "valid.guest@marginhotel.com", "0821234567");
+        assertThrows(IllegalArgumentException.class, () -> guestService.create(guest));
+    }
+
+    @Test
+    @Order(13)
+    void readMissingGuestReturnsNull() {
+        assertNull(guestService.read(MISSING_ID));
+    }
+
+    @Test
+    @Order(14)
+    void updateMissingGuestReturnsNull() {
+        Guest missing = new Guest.Builder().copy(mockGuest).setGuestId(MISSING_ID).build();
+        assertNull(guestService.update(missing));
+    }
+
+    @Test
+    @Order(15)
+    void updateWithInvalidEmailThrows() {
+        ContactDetails badEmail = new ContactDetails.Builder()
+                .setEmail("not-an-email")
+                .setMobile(mockGuest.getContactDetails().getMobile())
+                .build();
+        Guest invalid = new Guest.Builder().copy(mockGuest).setContactDetails(badEmail).build();
+        assertThrows(IllegalArgumentException.class, () -> guestService.update(invalid));
+    }
+
+    @Test
+    @Order(16)
+    void deleteMissingGuestReturnsFalse() {
+        assertFalse(guestService.deleteGuest(MISSING_ID));
+    }
+
+    @Test
+    @Order(17)
+    void findByEmailWithDuplicateEmailReturnsOneGuest() {
+        // Email is not unique, so two guests may share one. findByEmail must not fail;
+        // it returns one of the matching guests.
+        String sharedEmail = mockGuest.getContactDetails().getEmail();
+        Guest duplicate = guestService.create(GuestFactory.createGuest(
+                NameFactory.createName("Sipho", null, "Zulu"),
+                ContactDetailsFactory.createContactDetails(sharedEmail, "0831234567")));
+        assertNotNull(duplicate);
+
+        Guest found = assertDoesNotThrow(() -> guestService.findByEmail(sharedEmail));
+        assertNotNull(found);
+        assertEquals(sharedEmail, found.getContactDetails().getEmail());
     }
 }
