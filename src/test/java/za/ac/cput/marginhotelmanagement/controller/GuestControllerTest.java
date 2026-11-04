@@ -8,6 +8,8 @@ package za.ac.cput.marginhotelmanagement.controller;
    GuestController actually exposes, and fixed to hit the app's real
    "/marginhotel" context path on a random port instead of a hardcoded
    port 8080.
+   Updated: 04 November 2026 — a duplicate email (typed in capitals) returns
+   409 with the existing guest.
    */
 
 import org.junit.jupiter.api.*;
@@ -24,6 +26,8 @@ import za.ac.cput.marginhotelmanagement.domain.dtos.guest.CreateGuestRequest;
 import za.ac.cput.marginhotelmanagement.domain.dtos.guest.GuestDto;
 import za.ac.cput.marginhotelmanagement.domain.dtos.guest.UpdateGuestRequest;
 import za.ac.cput.marginhotelmanagement.repository.GuestRepository;
+
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -190,6 +194,25 @@ class GuestControllerTest {
 
     @Test
     @Order(10)
+    void createDuplicateEmailReturnsExistingGuest() {
+        CreateGuestRequest request = new CreateGuestRequest();
+        request.setFirstName("Someone");
+        request.setLastName("Else");
+        request.setEmail("HLOMLA.UPDATED@example.com");
+        request.setMobile("0821112222");
+
+        ResponseEntity<Map> response = this.restTemplate.postForEntity(BASE_URL() + "/create", request, Map.class);
+
+        assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
+        assertNotNull(response.getBody());
+        Map<?, ?> existing = (Map<?, ?>) response.getBody().get("existingGuest");
+        assertNotNull(existing, "The existing guest should be returned");
+        assertEquals(guestId, ((Number) existing.get("guestId")).longValue());
+        System.out.println("Duplicate refused: " + response.getBody());
+    }
+
+    @Test
+    @Order(11)
     void delete() {
         String url = BASE_URL() + "/delete/" + guestId;
         this.restTemplate.delete(url);

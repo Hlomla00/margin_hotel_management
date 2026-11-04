@@ -10,34 +10,63 @@ package za.ac.cput.marginhotelmanagement.service;
     Updated: 04 November 2026 — guest existence is now checked once, in update(),
     before validation (a missing guest still returns 404 first); updateGuest()
     no longer repeats the existsById call.
+    Updated: 04 November 2026 — guest rules, the way a hotel front desk works:
+    emails are trimmed and stored in lowercase and searched ignoring capitals;
+    a second guest with an email that is already used is refused (the caller
+    gets the existing guest instead); a guest with bookings or an online
+    account can't be deleted; the email of a guest with an online account
+    can't be changed here.
 */
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import za.ac.cput.marginhotelmanagement.domain.ContactDetails;
 import za.ac.cput.marginhotelmanagement.domain.Guest;
 import za.ac.cput.marginhotelmanagement.domain.dtos.guest.CreateGuestRequest;
 import za.ac.cput.marginhotelmanagement.domain.dtos.guest.GuestDto;
 import za.ac.cput.marginhotelmanagement.domain.dtos.guest.UpdateGuestRequest;
 import za.ac.cput.marginhotelmanagement.mappers.GuestMapper;
+import za.ac.cput.marginhotelmanagement.repository.AppUserRepository;
+import za.ac.cput.marginhotelmanagement.repository.BookingRepository;
 import za.ac.cput.marginhotelmanagement.repository.GuestRepository;
 import za.ac.cput.marginhotelmanagement.util.Helper;
 
 import java.util.List;
+import java.util.Locale;
 
 @Service
 public class GuestService implements IGuestService {
 
     private GuestRepository guestRepository;
+    private BookingRepository bookingRepository;
+    private AppUserRepository appUserRepository;
 
     @Autowired
-    GuestService(GuestRepository guestRepository) {
+    GuestService(GuestRepository guestRepository,
+                 BookingRepository bookingRepository,
+                 AppUserRepository appUserRepository) {
         this.guestRepository = guestRepository;
+        this.bookingRepository = bookingRepository;
+        this.appUserRepository = appUserRepository;
+    }
+
+    // Thrown when a request is valid but clashes with what is already stored
+    // (duplicate email, guest still has bookings, email linked to a login).
+    // GuestController turns it into 409 Conflict.
+    public static class GuestConflictException extends IllegalStateException {
+        public GuestConflictException(String message) {
+            super(message);
+        }
     }
 
     @Override
     public Guest create(Guest guest) {
         validate(guest);
-        return guestRepository.save(guest);
+        Guest normalised = normaliseEmail(guest);
+        if (emailBelongsToAnotherGuest(normalised.getContactDetails().getEmail(), null)) {
+            throw new GuestConflictException("A guest with this email already exists");
+        }
+        return guestRepository.save(normalised);
     }
 
     @Override
@@ -47,11 +76,28 @@ public class GuestService implements IGuestService {
 
     @Override
     public Guest update(Guest guest) {
-        if (guest.getGuestId() == null || !guestRepository.existsById(guest.getGuestId())) {
+        if (guest.getGuestId() == null) {
+            return null; // controller turns this into a 404
+        }
+        Guest existing = read(guest.getGuestId());
+        if (existing == null) {
             return null; // controller turns this into a 404
         }
         validate(guest);
-        return guestRepository.save(guest);
+        Guest normalised = normaliseEmail(guest);
+        String newEmail = normalised.getContactDetails().getEmail();
+        String oldEmail = existing.getContactDetails() != null ? existing.getContactDetails().getEmail() : null;
+
+        if (oldEmail == null || !oldEmail.equalsIgnoreCase(newEmail)) {
+            if (hasOnlineAccount(oldEmail)) {
+                throw new GuestConflictException(
+                        "This guest has an online account, so the email can only be changed from that account");
+            }
+            if (emailBelongsToAnotherGuest(newEmail, existing.getGuestId())) {
+                throw new GuestConflictException("Another guest already uses this email");
+            }
+        }
+        return guestRepository.save(normalised);
     }
 
     // Mirrors the validation pattern used in PaymentService: real checks
@@ -70,7 +116,8 @@ public class GuestService implements IGuestService {
         if (Helper.isNullOrEmpty(guest.getContactDetails())) {
             throw new IllegalArgumentException("Guest contact details are required");
         }
-        if (Helper.isInvalidEmail(guest.getContactDetails().getEmail())) {
+        String email = guest.getContactDetails().getEmail();
+        if (Helper.isInvalidEmail(email == null ? null : email.trim())) {
             throw new IllegalArgumentException("A valid email is required");
         }
         if (Helper.isInvalidMobile(guest.getContactDetails().getMobile())) {
@@ -78,8 +125,38 @@ public class GuestService implements IGuestService {
         }
     }
 
+    // Emails are stored trimmed and in lowercase, so the same address typed
+    // differently is still one guest.
+    private Guest normaliseEmail(Guest guest) {
+        ContactDetails contactDetails = new ContactDetails.Builder()
+                .copy(guest.getContactDetails())
+                .setEmail(guest.getContactDetails().getEmail().trim().toLowerCase(Locale.ROOT))
+                .build();
+        return new Guest.Builder().copy(guest).setContactDetails(contactDetails).build();
+    }
+
+    private boolean emailBelongsToAnotherGuest(String email, Long ownGuestId) {
+        return guestRepository.findByContactDetails_EmailIgnoreCase(email)
+                .stream()
+                .anyMatch(other -> !other.getGuestId().equals(ownGuestId));
+    }
+
+    private boolean hasOnlineAccount(String email) {
+        if (Helper.isNullOrEmpty(email)) {
+            return false;
+        }
+        return appUserRepository.findByEmail(email).isPresent()
+                || appUserRepository.findByEmail(email.trim().toLowerCase(Locale.ROOT)).isPresent();
+    }
+
     @Override
     public boolean delete(Guest guest) {
+        if (!bookingRepository.findByGuest_GuestId(guest.getGuestId()).isEmpty()) {
+            throw new GuestConflictException("This guest has bookings, so the record is kept for the hotel's history");
+        }
+        if (guest.getContactDetails() != null && hasOnlineAccount(guest.getContactDetails().getEmail())) {
+            throw new GuestConflictException("This guest has an online account, so the record can't be deleted");
+        }
         guestRepository.delete(guest);
         return true;
     }
@@ -101,7 +178,11 @@ public class GuestService implements IGuestService {
 
     @Override
     public Guest findByEmail(String email) {
-        return guestRepository.findByContactDetails_Email(email).stream().findFirst().orElse(null);
+        if (Helper.isNullOrEmpty(email)) {
+            return null;
+        }
+        return guestRepository.findByContactDetails_EmailIgnoreCase(email.trim())
+                .stream().findFirst().orElse(null);
     }
 
     /* ==== DTO based methods, this is what GuestController actually calls ==== */
