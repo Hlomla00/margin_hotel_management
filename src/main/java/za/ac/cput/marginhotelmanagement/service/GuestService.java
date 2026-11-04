@@ -7,6 +7,9 @@ package za.ac.cput.marginhotelmanagement.service;
     Updated: 09 September 2026 — added the DTO-based create/read/update/delete
     methods (CreateGuestRequest / GuestDto / UpdateGuestRequest) that
     GuestController now calls, same pattern as PaymentService/BookingService.
+    Updated: 04 November 2026 — guest existence is now checked once, in update(),
+    before validation (a missing guest still returns 404 first); updateGuest()
+    no longer repeats the existsById call.
 */
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,10 +47,10 @@ public class GuestService implements IGuestService {
 
     @Override
     public Guest update(Guest guest) {
-        validate(guest);
         if (guest.getGuestId() == null || !guestRepository.existsById(guest.getGuestId())) {
             return null; // controller turns this into a 404
         }
+        validate(guest);
         return guestRepository.save(guest);
     }
 
@@ -118,11 +121,10 @@ public class GuestService implements IGuestService {
     }
 
     public GuestDto updateGuest(UpdateGuestRequest request) {
-        if (Helper.isNullOrEmpty(request.getGuestId()) || !guestRepository.existsById(request.getGuestId())) {
+        Guest updated = update(GuestMapper.toEntity(request));
+        if (updated == null) {
             return null; // Controller returns 404 Not Found
         }
-        Guest guest = GuestMapper.toEntity(request);
-        Guest updated = update(guest);
         return GuestMapper.toDto(updated);
     }
 
