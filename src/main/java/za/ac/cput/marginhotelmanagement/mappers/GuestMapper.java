@@ -1,11 +1,13 @@
 package za.ac.cput.marginhotelmanagement.mappers;
-
 /*
+   GuestMapper.java
    Converts between the Guest entity and its DTOs. Plain static methods,
    same style as StaffMapper, since Name/ContactDetails use nested Builders
    that MapStruct doesn't map cleanly by default.
    Author: Hlomla Magopeni (218070349)
    Date: 09 September 2026
+   Updated: 04 November 2026 — toDto no longer throws a NullPointerException
+   when a guest has no name or contact details; returns null for a null guest.
    */
 
 import za.ac.cput.marginhotelmanagement.domain.ContactDetails;
@@ -54,14 +56,22 @@ public class GuestMapper {
                 .build();
     }
 
+    // Older rows may have no embedded name or contact details (JPA loads an
+    // all-null embeddable as null), so those fields come back as null instead
+    // of throwing a NullPointerException.
     public static GuestDto toDto(Guest guest) {
+        if (guest == null) {
+            return null;
+        }
+        Name name = guest.getName();
+        ContactDetails contactDetails = guest.getContactDetails();
         return new GuestDto(
                 guest.getGuestId(),
-                guest.getName().getFirstName(),
-                guest.getName().getMiddleName(),
-                guest.getName().getLastName(),
-                guest.getContactDetails().getEmail(),
-                guest.getContactDetails().getMobile()
+                name != null ? name.getFirstName() : null,
+                name != null ? name.getMiddleName() : null,
+                name != null ? name.getLastName() : null,
+                contactDetails != null ? contactDetails.getEmail() : null,
+                contactDetails != null ? contactDetails.getMobile() : null
         );
     }
 }
