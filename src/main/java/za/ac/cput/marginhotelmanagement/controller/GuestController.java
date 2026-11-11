@@ -7,6 +7,10 @@ package za.ac.cput.marginhotelmanagement.controller;
    Updated: 09 September 2026 — rewritten against the DTO-based contract
    (CreateGuestRequest / GuestDto / UpdateGuestRequest), same pattern as
    BookingController/PaymentController.
+   Updated: 04 November 2026 — 409 Conflict for guest rule clashes: a duplicate
+   email returns the existing guest so the front desk books under that guest;
+   deleting a guest with bookings or an online account, and changing the
+   email of a guest with an online account, explain why they were refused.
    */
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,7 +24,9 @@ import za.ac.cput.marginhotelmanagement.domain.dtos.guest.UpdateGuestRequest;
 import za.ac.cput.marginhotelmanagement.service.GuestService;
 import za.ac.cput.marginhotelmanagement.service.GuestFlowAccess;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/guest")
@@ -50,6 +56,12 @@ public class GuestController {
             return new ResponseEntity<>(createdGuest, HttpStatus.CREATED);
         } catch (IllegalArgumentException e) {
             return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
+        } catch (GuestService.GuestConflictException e) {
+            // Return the guest who already has this email, so the booking can use them.
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("message", e.getMessage());
+            body.put("existingGuest", guestService.getGuestByEmail(request.getEmail()));
+            return new ResponseEntity<>(body, HttpStatus.CONFLICT);
         }
     }
 
@@ -73,16 +85,22 @@ public class GuestController {
             return new ResponseEntity<>(updated, HttpStatus.OK);
         } catch (IllegalArgumentException e) {
             return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
+        } catch (GuestService.GuestConflictException e) {
+            return new ResponseEntity<>(e.getMessage(), HttpStatus.CONFLICT);
         }
     }
 
     @DeleteMapping("/delete/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        boolean deleted = guestService.deleteGuest(id);
-        if (!deleted) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+    public ResponseEntity<?> delete(@PathVariable Long id) {
+        try {
+            boolean deleted = guestService.deleteGuest(id);
+            if (!deleted) {
+                return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+            }
+            return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+        } catch (GuestService.GuestConflictException e) {
+            return new ResponseEntity<>(e.getMessage(), HttpStatus.CONFLICT);
         }
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 
     @GetMapping("/getall")
